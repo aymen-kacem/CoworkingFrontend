@@ -3,98 +3,105 @@
 @inject NavigationManager NavigationManager
 @inject IAuthService AuthService
 
-<div class="d-flex" id="wrapper">
-    <!-- Sidebar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark" style="width: var(--sidebar-width); position: fixed; height: 100vh; overflow-y: auto;">
-        <div class="container-fluid d-flex flex-column p-3">
-            <div class="d-flex align-items-center mb-3">
-                <NavLink class="navbar-brand me-auto" href="/dashboard">CoWorking</NavLink>
-                <button class="btn btn-sm btn-outline-light d-lg-none" @onclick="ToggleSidebar">☰</button>
-            </div>
+<header>
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(90deg, rgba(11,35,64,0.95) 0%, rgba(11,42,74,0.95) 100%); box-shadow: 0 6px 20px rgba(16,24,40,0.12);">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="/dashboard">
+                <strong style="letter-spacing:0.4px">CoWorking</strong>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-            <div class="mb-3 text-white muted">
-                <small class="d-block">Welcome</small>
-                <strong>@Username</strong>
-                <div class="mt-1"><span class="badge-soft">@UserRole</span></div>
-            </div>
-
-            <div class="flex-grow-1">
-                <ul class="navbar-nav flex-column">
+            <div class="collapse navbar-collapse" id="mainNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     @if (AuthService.IsAuthenticated)
                     {
                         <li class="nav-item">
                             <NavLink class="nav-link" href="/dashboard">Dashboard</NavLink>
                         </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="/my-abonnements">My Subscriptions</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="/my-reservations">My Reservations</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="/admin/espaces">Manage Espaces</NavLink>
-                        </li>
+
+                        @if (UserRole == "Etudiant")
+                        {
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/my-abonnements">My Subscriptions</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/my-reservations">My Reservations</NavLink>
+                            </li>
+                        }
+
+                        @if (UserRole == "Admin")
+                        {
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/admin/espaces">Manage Espaces</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/admin/ressources">Manage Resources</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/admin/abonnements">All Abonnements</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/admin/reservations">All Reservations</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/admin/maintenance">Manage Maintenance</NavLink>
+                            </li>
+                        }
+
+                        @if (UserRole == "Technicien")
+                        {
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/technicien/maintenance">Maintenance</NavLink>
+                            </li>
+                        }
+                    }
+                </ul>
+
+                <div class="d-flex align-items-center">
+                    @if (AuthService.IsAuthenticated)
+                    {
+                        <div class="me-3 text-end d-none d-md-block">
+                            <div style="font-weight:700;">@Username</div>
+                            <div class="muted small">@UserRole</div>
+                        </div>
+                        <button class="btn btn-outline-light" @onclick="HandleLogout">Logout</button>
                     }
                     else
                     {
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="/login">Login</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="/register">Register</NavLink>
-                        </li>
+                        <a class="btn btn-outline-light me-2" href="/login">Login</a>
+                        <a class="btn btn-primary" href="/register">Register</a>
                     }
-                </ul>
-            </div>
-
-            <div class="mt-3">
-                @if (AuthService.IsAuthenticated)
-                {
-                    <button class="btn btn-outline-light w-100" @onclick="HandleLogout">Logout</button>
-                }
+                </div>
             </div>
         </div>
     </nav>
+</header>
 
-    <!-- Main Content -->
-    <div style="margin-left: var(--sidebar-width); width: calc(100% - var(--sidebar-width));">
-        <header class="d-flex align-items-center justify-content-between px-4 py-3 bg-transparent" style="border-bottom: 1px solid rgba(0,0,0,0.04);">
-            <div class="d-flex align-items-center">
-                <button class="btn btn-sm btn-outline-secondary me-3 d-none d-lg-inline" @onclick="ToggleSidebar">☰</button>
-                <div class="input-group d-none d-md-flex" style="max-width:400px;">
-                    <span class="input-group-text bg-white border-right-0">🔍</span>
-                    <input class="form-control" placeholder="Search..." />
-                </div>
-            </div>
-            <div class="d-flex align-items-center">
-                <a class="me-3 muted" href="#">Help</a>
-                <div class="d-flex align-items-center panel p-2">
-                    <img src="/images/avatar-placeholder.png" alt="avatar" width="36" height="36" class="img-rounded me-2" />
-                    <div class="d-none d-sm-block">
-                        <div style="font-weight:700;">@Username</div>
-                        <div class="muted small">@UserRole</div>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <article class="content">
-            @Body
-        </article>
+<main style="padding-top:1.5rem;">
+    <div class="container-fluid content">
+        @Body
     </div>
-</div>
+</main>
 
 @code {
     private string Username = "Guest";
     private string UserRole = string.Empty;
-    private bool sidebarCollapsed = false;
 
     protected override async Task OnInitializedAsync()
     {
         if (AuthService.IsAuthenticated)
         {
-            Username = await AuthService.GetUsernameAsync();
-            UserRole = await AuthService.GetRoleAsync();
+            try
+            {
+                Username = await AuthService.GetUsernameAsync();
+                UserRole = await AuthService.GetRoleAsync();
+            }
+            catch
+            {
+                // ignore
+            }
         }
     }
 
@@ -102,11 +109,5 @@
     {
         await AuthService.LogoutAsync();
         NavigationManager.NavigateTo("/login");
-    }
-
-    private void ToggleSidebar()
-    {
-        sidebarCollapsed = !sidebarCollapsed;
-        // Toggle simple inline style by manipulating document body — keep minimal to avoid JS interop here.
     }
 }

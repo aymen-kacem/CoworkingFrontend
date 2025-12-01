@@ -59,7 +59,7 @@ namespace CoworkingBlazor.Services
         {
             try
             {
-                var response = await _httpClient.PostAsJsonAsync("api/Account/registre",
+                var response = await _httpClient.PostAsJsonAsync("api/Account/register",
                     new { username, emailAddress = email, password, role });
                 return response.IsSuccessStatusCode;
             }

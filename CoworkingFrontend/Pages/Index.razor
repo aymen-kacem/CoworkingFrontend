@@ -1,0 +1,19 @@
+@page "/"
+@using CoworkingBlazor.Services
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // If user is authenticated, go to dashboard; otherwise show login page
+        if (AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/dashboard", true);
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/login", true);
+        }
+    }
+}

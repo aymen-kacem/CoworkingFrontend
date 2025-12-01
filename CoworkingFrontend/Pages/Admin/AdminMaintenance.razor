@@ -1,0 +1,259 @@
+@page "/admin/maintenance"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IMaintenanceService MaintenanceService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="mb-0">Manage Maintenance</h2>
+            <div class="muted">Create and assign maintenance tasks to technicians</div>
+        </div>
+        <div>
+            <a class="btn btn-outline-secondary" href="/dashboard">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <div class="panel mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h5 class="mb-0">Create Maintenance Task</h5>
+            <small class="muted">Assign to a technician</small>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Espace</label>
+                <select class="form-select" @bind="NewMaintenance.EspaceId">
+                    <option value="0">-- Select Espace --</option>
+                    @foreach (var e in Espaces)
+                    {
+                        <option value="@e.Id">@e.Nom (@e.Type)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Technician</label>
+                <select class="form-select" @bind="NewMaintenance.TechnicienId">
+                    <option value="0">-- Select Technician --</option>
+                    @foreach (var t in Technicians)
+                    {
+                        <option value="@t.Id">@t.UserName (@t.Email)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-12">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" @bind="NewMaintenance.Description" rows="3"></textarea>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Date</label>
+                <input type="date" class="form-control" @bind="NewMaintenance.Date" />
+            </div>
+
+            <div class="col-md-8 d-flex align-items-end gap-2">
+                <button class="btn btn-success" @onclick="CreateMaintenance" disabled="@IsProcessing">
+                    @if (IsProcessing) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                    Create Task
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="ClearNew">Reset</button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(FormError))
+        {
+            <div class="alert alert-danger mt-3">@FormError</div>
+        }
+    </div>
+
+    <div class="mb-3">
+        <h5 class="mb-2">Existing Maintenance Tasks</h5>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="text-center p-5"><div class="spinner-border text-primary" role="status"></div></div>
+    }
+    else if (AllMaintenances.Count == 0)
+    {
+        <div class="alert alert-info">No maintenance tasks found.</div>
+    }
+    else
+    {
+        <div class="table-responsive panel">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Espace</th>
+                        <th>Technician</th>
+                        <th>Description</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in AllMaintenances)
+                    {
+                        <tr>
+                            <td>@m.Id</td>
+                            <td>@GetEspaceName(m.EspaceId)</td>
+                            <td>@GetTechnicianName(m.TechnicienId)</td>
+                            <td style="max-width:360px; white-space:normal;">@m.Description</td>
+                            <td>@m.Date.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                <select class="form-select form-select-sm" style="min-width:140px;" @bind="m.Statut">
+                                    <option value="Pending">Pending</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Completed">Completed</option>
+                                </select>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-primary me-1" @onclick="() => SaveMaintenance(m)">Save</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteMaintenance(m.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(GlobalError))
+    {
+        <div class="alert alert-danger mt-3">@GlobalError</div>
+    }
+</div>
+
+@code {
+    private List<CoworkingFrontend.Models.Maintenance> AllMaintenances = new();
+    private List<Espace> Espaces = new();
+    private List<Utilisateur> Technicians = new();
+    private CoworkingFrontend.Models.Maintenance NewMaintenance = new() { Date = DateTime.Now };
+    private bool IsLoading = true;
+    private bool IsProcessing = false;
+    private string FormError = string.Empty;
+    private string GlobalError = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        await LoadAll();
+    }
+
+    private async Task LoadAll()
+    {
+        try
+        {
+            IsLoading = true;
+            AllMaintenances = await MaintenanceService.GetAllMaintenanceAsync();
+            Espaces = await EspaceService.GetAllEspacesAsync();
+            await LoadTechnicians();
+        }
+        catch (Exception ex)
+        {
+            GlobalError = $"Error loading data: {ex.Message}";
+        }
+        finally { IsLoading = false; }
+    }
+
+    private async Task LoadTechnicians()
+    {
+        try
+        {
+            // try specific endpoint then fallback
+            Technicians = await Http.GetFromJsonAsync<List<Utilisateur>>("api/Account/technicians");
+            if (Technicians == null || Technicians.Count == 0)
+            {
+                Technicians = await Http.GetFromJsonAsync<List<Utilisateur>>("api/Account/users");
+            }
+
+            // filter to techniciens if Role enum available
+            Technicians = Technicians?.Where(u => u.Role.ToString().ToLower().Contains("technicien") ).ToList() ?? new List<Utilisateur>();
+        }
+        catch
+        {
+            Technicians = new List<Utilisateur>();
+        }
+    }
+
+    private string GetEspaceName(int id) => Espaces.FirstOrDefault(e => e.Id == id)?.Nom ?? $"#{id}";
+    private string GetTechnicianName(int id) => Technicians.FirstOrDefault(t => t.Id == id)?.UserName ?? $"#{id}";
+
+    private void ClearNew()
+    {
+        NewMaintenance = new CoworkingFrontend.Models.Maintenance { Date = DateTime.Now };
+        FormError = string.Empty;
+    }
+
+    private async Task CreateMaintenance()
+    {
+        FormError = string.Empty;
+        if (NewMaintenance.EspaceId == 0 || NewMaintenance.TechnicienId == 0 || string.IsNullOrWhiteSpace(NewMaintenance.Description))
+        {
+            FormError = "Please fill required fields and assign a technician.";
+            return;
+        }
+
+        IsProcessing = true;
+        try
+        {
+            var ok = await MaintenanceService.CreateMaintenanceAsync(NewMaintenance);
+            if (ok)
+            {
+                ClearNew();
+                await LoadAll();
+            }
+            else
+            {
+                FormError = "Failed to create maintenance task.";
+            }
+        }
+        catch (Exception ex)
+        {
+            FormError = $"Error creating: {ex.Message}";
+        }
+        finally { IsProcessing = false; }
+    }
+
+    private async Task SaveMaintenance(CoworkingFrontend.Models.Maintenance m)
+    {
+        GlobalError = string.Empty;
+        try
+        {
+            var ok = await MaintenanceService.UpdateMaintenanceAsync(m.Id, m);
+            if (!ok) GlobalError = "Failed to save changes.";
+        }
+        catch (Exception ex)
+        {
+            GlobalError = $"Error saving: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteMaintenance(int id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this maintenance task?")) return;
+        try
+        {
+            var ok = await MaintenanceService.DeleteMaintenanceAsync(id);
+            if (ok) await LoadAll(); else GlobalError = "Failed to delete.";
+        }
+        catch (Exception ex)
+        {
+            GlobalError = $"Error deleting: {ex.Message}";
+        }
+    }
+}
