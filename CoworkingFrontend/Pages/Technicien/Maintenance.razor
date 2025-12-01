@@ -1,0 +1,236 @@
+﻿/* ===== Pages/Technicien/Maintenance.razor (FIXED) ===== */
+@page "/technicien/maintenance"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IMaintenanceService MaintenanceService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Maintenance Tasks</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+            <button class="btn btn-success" @onclick="() => ShowCreateForm = !ShowCreateForm">New Task</button>
+        </div>
+    </div>
+
+    @if (ShowCreateForm)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Create New Maintenance Task</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Espace</label>
+                            <select class="form-select" @bind="NewMaintenance.EspaceId">
+                                <option value="0">-- Select Espace --</option>
+                                @foreach (var espace in EspacesList)
+                                {
+                                    <option value="@espace.Id">@espace.Nom</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" @bind="NewMaintenance.Description" placeholder="Describe the maintenance task" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" @bind="NewMaintenance.Statut">
+                                <option value="">-- Select Status --</option>
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Date</label>
+                            <input type="date" class="form-control" @bind="MaintenanceDate" />
+                        </div>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        @ErrorMessage
+                        <button type="button" class="btn-close" @onclick="() => ErrorMessage = string.Empty"></button>
+                    </div>
+                }
+                <div class="mb-3">
+                    <button class="btn btn-primary" @onclick="CreateMaintenance" disabled="@IsLoading">
+                        @if (IsLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Create
+                    </button>
+                    <button class="btn btn-secondary" @onclick="() => ShowCreateForm = false">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (IsLoadingMaintenance)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (MaintenancesList.Count == 0)
+    {
+        <div class="alert alert-info">
+            <strong>No maintenance tasks found.</strong> Create one to get started!
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Espace ID</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var maintenance in MaintenancesList)
+                    {
+                        <tr>
+                            <td>@maintenance.Id</td>
+                            <td>@maintenance.EspaceId</td>
+                            <td>@maintenance.Description</td>
+                            <td>
+                                <span class="badge bg-warning">@maintenance.Statut</span>
+                            </td>
+                            <td>@maintenance.Date.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteMaintenance(maintenance.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<CoworkingFrontend.Models.Maintenance> MaintenancesList = new();
+    private List<CoworkingFrontend.Models.Espace> EspacesList = new();
+    private CoworkingFrontend.Models.Maintenance NewMaintenance = new();
+    private DateTime MaintenanceDate = DateTime.Now;
+    private bool IsLoadingMaintenance = true;
+    private bool IsLoading = false;
+    private bool ShowCreateForm = false;
+    private string ErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            IsLoadingMaintenance = true;
+            MaintenancesList = await MaintenanceService.GetAllMaintenanceAsync();
+            EspacesList = await EspaceService.GetAllEspacesAsync();
+            IsLoadingMaintenance = false;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error loading data: {ex.Message}";
+            IsLoadingMaintenance = false;
+        }
+    }
+
+    private async Task CreateMaintenance()
+    {
+        if (NewMaintenance.EspaceId == 0)
+        {
+            ErrorMessage = "Please select an Espace";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(NewMaintenance.Statut))
+        {
+            ErrorMessage = "Please select a Status";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(NewMaintenance.Description))
+        {
+            ErrorMessage = "Please enter a Description";
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            NewMaintenance.Date = MaintenanceDate;
+            bool success = await MaintenanceService.CreateMaintenanceAsync(NewMaintenance);
+            IsLoading = false;
+
+            if (success)
+            {
+                NewMaintenance = new CoworkingFrontend.Models.Maintenance();
+                MaintenanceDate = DateTime.Now;
+                ShowCreateForm = false;
+                ErrorMessage = string.Empty;
+                await LoadData();
+            }
+            else
+            {
+                ErrorMessage = "Failed to create maintenance task";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error: {ex.Message}";
+            IsLoading = false;
+        }
+    }
+
+    private async Task DeleteMaintenance(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this maintenance task?"))
+        {
+            try
+            {
+                bool success = await MaintenanceService.DeleteMaintenanceAsync(id);
+                if (success)
+                {
+                    await LoadData();
+                }
+                else
+                {
+                    ErrorMessage = "Failed to delete maintenance task";
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = $"Error deleting: {ex.Message}";
+            }
+        }
+    }
+}

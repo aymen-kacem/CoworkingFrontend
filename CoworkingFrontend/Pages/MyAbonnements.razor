@@ -1,0 +1,181 @@
+﻿@page "/my-abonnements"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IAbonnementService AbonnementService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>My Subscriptions</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+            <button class="btn btn-success" @onclick="() => ShowCreateForm = true">New Subscription</button>
+        </div>
+    </div>
+
+    @if (ShowCreateForm)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Create New Abonnement</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Espace</label>
+                            <select class="form-select" @bind="NewAbonnement.EspaceId">
+                                <option value="0">-- Select Espace --</option>
+                                @foreach (var espace in EspacesList)
+                                {
+                                    <option value="@espace.Id">@espace.Nom (@espace.Type)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Type</label>
+                            <input type="text" class="form-control" @bind="NewAbonnement.Type" placeholder="e.g., Monthly, Annual" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Price</label>
+                            <input type="number" step="0.01" class="form-control" @bind="NewAbonnement.Prix" placeholder="Price" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" class="form-control" @bind="NewAbonnement.DateDebut" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">End Date</label>
+                            <input type="date" class="form-control" @bind="NewAbonnement.DateFin" />
+                        </div>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger">@ErrorMessage</div>
+                }
+                <button class="btn btn-primary" @onclick="CreateAbonnement" disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    Create
+                </button>
+                <button class="btn btn-secondary" @onclick="() => ShowCreateForm = false">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (IsLoadingAbonnements)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (AbonnementsList.Count == 0)
+    {
+        <div class="alert alert-info">No subscriptions found. Create one to get started!</div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var abonnement in AbonnementsList)
+            {
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">@abonnement.Type</h5>
+                            <p class="card-text">
+                                <strong>Price:</strong> $@abonnement.Prix.ToString("F2")<br />
+                                <strong>Start:</strong> @abonnement.DateDebut.ToString("dd/MM/yyyy")<br />
+                                <strong>End:</strong> @abonnement.DateFin.ToString("dd/MM/yyyy")<br />
+                                <strong>Status:</strong> <span class="badge bg-info">@abonnement.Statut</span>
+                            </p>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteAbonnement(abonnement.Id)">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Abonnement> AbonnementsList = new();
+    private List<Espace> EspacesList = new();
+    private Abonnement NewAbonnement = new();
+    private bool IsLoadingAbonnements = true;
+    private bool IsLoading = false;
+    private bool ShowCreateForm = false;
+    private string ErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoadingAbonnements = true;
+        AbonnementsList = await AbonnementService.GetMyAbonnementsAsync();
+        EspacesList = await EspaceService.GetAllEspacesAsync();
+        IsLoadingAbonnements = false;
+    }
+
+    private async Task CreateAbonnement()
+    {
+        if (string.IsNullOrWhiteSpace(NewAbonnement.Type) || NewAbonnement.Prix <= 0 || NewAbonnement.EspaceId == 0)
+        {
+            ErrorMessage = "Please fill in all required fields";
+            return;
+        }
+
+        if (NewAbonnement.DateFin <= NewAbonnement.DateDebut)
+        {
+            ErrorMessage = "End date must be after start date";
+            return;
+        }
+
+        IsLoading = true;
+        NewAbonnement.Statut = Statut.EnAttente;
+        var result = await AbonnementService.CreateAbonnementAsync(NewAbonnement);
+        IsLoading = false;
+
+        if (result != null)
+        {
+            NewAbonnement = new();
+            ShowCreateForm = false;
+            await LoadData();
+        }
+        else
+        {
+            ErrorMessage = "Failed to create subscription";
+        }
+    }
+
+    private async Task DeleteAbonnement(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this subscription?"))
+        {
+            bool success = await AbonnementService.DeleteAbonnementAsync(id);
+            if (success)
+            {
+                await LoadData();
+            }
+        }
+    }
+
+    [Inject]
+    protected IJSRuntime JS { get; set; }
+}

@@ -1,0 +1,180 @@
+﻿@page "/my-reservations"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IReservationService ReservationService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>My Reservations</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+            <button class="btn btn-success" @onclick="() => ShowCreateForm = true">New Reservation</button>
+        </div>
+    </div>
+
+    @if (ShowCreateForm)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Create New Reservation</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Espace</label>
+                            <select class="form-select" @bind="NewReservation.EspaceId">
+                                <option value="0">-- Select Espace --</option>
+                                @foreach (var espace in EspacesList)
+                                {
+                                    <option value="@espace.Id">@espace.Nom (@espace.Type)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Start Date</label>
+                            <input type="datetime-local" class="form-control" @bind="NewReservation.DateDebut" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">End Date</label>
+                            <input type="datetime-local" class="form-control" @bind="NewReservation.DateFin" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" @bind="NewReservation.Notes" placeholder="Optional notes" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger">@ErrorMessage</div>
+                }
+                <button class="btn btn-primary" @onclick="CreateReservation" disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    Create
+                </button>
+                <button class="btn btn-secondary" @onclick="() => ShowCreateForm = false">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (IsLoadingReservations)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (ReservationsList.Count == 0)
+    {
+        <div class="alert alert-info">No reservations found. Create one to get started!</div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var reservation in ReservationsList)
+            {
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Reservation #@reservation.Id</h5>
+                            <p class="card-text">
+                                <strong>Status:</strong> <span class="badge bg-info">@reservation.Statut</span><br />
+                                <strong>Start:</strong> @reservation.DateDebut.ToString("dd/MM/yyyy HH:mm")<br />
+                                <strong>End:</strong> @reservation.DateFin.ToString("dd/MM/yyyy HH:mm")<br />
+                                @if (!string.IsNullOrEmpty(reservation.Notes))
+                                {
+                                    <strong>Notes:</strong> @reservation.Notes
+                                }
+                            </p>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteReservation(reservation.Id)">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Reservation> ReservationsList = new();
+    private List<Espace> EspacesList = new();
+    private Reservation NewReservation = new();
+    private bool IsLoadingReservations = true;
+    private bool IsLoading = false;
+    private bool ShowCreateForm = false;
+    private string ErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoadingReservations = true;
+        ReservationsList = await ReservationService.GetMyReservationsAsync();
+        EspacesList = await EspaceService.GetAllEspacesAsync();
+        IsLoadingReservations = false;
+    }
+
+    private async Task CreateReservation()
+    {
+        if (NewReservation.EspaceId == 0 || NewReservation.DateDebut == default || NewReservation.DateFin == default)
+        {
+            ErrorMessage = "Please fill in all required fields";
+            return;
+        }
+
+        if (NewReservation.DateFin <= NewReservation.DateDebut)
+        {
+            ErrorMessage = "End date must be after start date";
+            return;
+        }
+
+        IsLoading = true;
+        NewReservation.Statut = Statut.EnAttente;
+        bool success = await ReservationService.CreateReservationAsync(NewReservation);
+        IsLoading = false;
+
+        if (success)
+        {
+            NewReservation = new();
+            ShowCreateForm = false;
+            await LoadData();
+        }
+        else
+        {
+            ErrorMessage = "Failed to create reservation";
+        }
+    }
+
+    private async Task DeleteReservation(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Are you sure?"))
+        {
+            bool success = await ReservationService.DeleteReservationAsync(id);
+            if (success)
+            {
+                await LoadData();
+            }
+        }
+    }
+
+    [Inject]
+    protected IJSRuntime JS { get; set; }
+}

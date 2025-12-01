@@ -1,0 +1,92 @@
+﻿@page "/register"
+@using CoworkingBlazor.Services
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">Register</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" @bind="Username" placeholder="Choose username" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" @bind="Email" placeholder="Enter email" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" @bind="Password" placeholder="Enter password" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" @bind="Role">
+                            <option value="">-- Select Role --</option>
+                            <option value="Etudiant">Student (Etudiant)</option>
+                            <option value="Technicien">Technician (Technicien)</option>
+                            <option value="Admin">Admin</option>
+                        </select>
+                    </div>
+                    @if (!string.IsNullOrEmpty(ErrorMessage))
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            @ErrorMessage
+                                <button type="button" class="btn-close" @onclick="() => ErrorMessage = string.Empty"></button>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(SuccessMessage))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show">
+                            @SuccessMessage
+                            <button type="button" class="btn-close" @onclick='() => { SuccessMessage = string.Empty; NavigationManager.NavigateTo("/login"); }'></button>
+                        </div>
+                    }
+                    <button class="btn btn-success w-100" @onclick="HandleRegister" disabled="@IsLoading">
+                        @if (IsLoading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        Register
+                    </button>
+                    <hr />
+                    <p class="text-center">Already have an account? <a href="/login">Login here</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string Username = string.Empty;
+    private string Email = string.Empty;
+    private string Password = string.Empty;
+    private string Role = string.Empty;
+    private string ErrorMessage = string.Empty;
+    private string SuccessMessage = string.Empty;
+    private bool IsLoading = false;
+
+    private async Task HandleRegister()
+    {
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Email) 
+            || string.IsNullOrWhiteSpace(Password) || string.IsNullOrWhiteSpace(Role))
+        {
+            ErrorMessage = "All fields are required";
+            return;
+        }
+
+        IsLoading = true;
+        bool success = await AuthService.RegisterAsync(Username, Email, Password, Role);
+        IsLoading = false;
+
+        if (success)
+        {
+            SuccessMessage = "Registration successful! Redirecting to login...";
+        }
+        else
+        {
+            ErrorMessage = "Registration failed. Please try again.";
+        }
+    }
+}

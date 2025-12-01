@@ -1,0 +1,166 @@
+﻿@page "/admin/espaces"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Manage Espaces</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+            <button class="btn btn-success" @onclick="() => ShowCreateForm = true">New Espace</button>
+        </div>
+    </div>
+
+    @if (ShowCreateForm)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Create New Espace</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" @bind="NewEspace.Nom" placeholder="Espace name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Type</label>
+                            <input type="text" class="form-control" @bind="NewEspace.Type" placeholder="e.g., Open Space, Meeting Room" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Capacity</label>
+                            <input type="number" class="form-control" @bind="NewEspace.Capacite" placeholder="Number of people" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Location</label>
+                            <input type="text" class="form-control" @bind="NewEspace.Localisation" placeholder="Building/Floor" />
+                        </div>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger">@ErrorMessage</div>
+                }
+                <button class="btn btn-primary" @onclick="CreateEspace" disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    Create
+                </button>
+                <button class="btn btn-secondary" @onclick="() => ShowCreateForm = false">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (IsLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status"></div>
+        </div>
+    }
+    else if (EspacesList.Count == 0)
+    {
+        <div class="alert alert-info">No espaces found.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Capacity</th>
+                        <th>Location</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var espace in EspacesList)
+                    {
+                        <tr>
+                            <td>@espace.Nom</td>
+                            <td>@espace.Type</td>
+                            <td>@espace.Capacite</td>
+                            <td>@espace.Localisation</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteEspace(espace.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Espace> EspacesList = new();
+    private Espace NewEspace = new();
+    private bool IsLoading = true;
+    private bool ShowCreateForm = false;
+    private string ErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadEspaces();
+    }
+
+    private async Task LoadEspaces()
+    {
+        IsLoading = true;
+        EspacesList = await EspaceService.GetAllEspacesAsync();
+        IsLoading = false;
+    }
+
+    private async Task CreateEspace()
+    {
+        if (string.IsNullOrWhiteSpace(NewEspace.Nom) || NewEspace.Capacite <= 0)
+        {
+            ErrorMessage = "Please fill in all required fields";
+            return;
+        }
+
+        IsLoading = true;
+        bool success = await EspaceService.CreateEspaceAsync(NewEspace);
+        IsLoading = false;
+
+        if (success)
+        {
+            NewEspace = new();
+            ShowCreateForm = false;
+            await LoadEspaces();
+        }
+        else
+        {
+            ErrorMessage = "Failed to create espace";
+        }
+    }
+
+    private async Task DeleteEspace(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Delete this espace?"))
+        {
+            bool success = await EspaceService.DeleteEspaceAsync(id);
+            if (success)
+            {
+                await LoadEspaces();
+            }
+        }
+    }
+
+    [Inject]
+    protected IJSRuntime JS { get; set; }
+}

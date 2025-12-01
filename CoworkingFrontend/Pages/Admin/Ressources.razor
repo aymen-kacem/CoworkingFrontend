@@ -1,0 +1,175 @@
+﻿@page "/admin/ressources"
+@using CoworkingBlazor.Services
+@using CoworkingFrontend.Models
+@inject IRessourceService RessourceService
+@inject IEspaceService EspaceService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Manage Resources</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+            <button class="btn btn-success" @onclick="() => ShowCreateForm = true">New Resource</button>
+        </div>
+    </div>
+
+    @if (ShowCreateForm)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Create New Resource</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" @bind="NewRessource.Nom" placeholder="Resource name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Type</label>
+                            <input type="text" class="form-control" @bind="NewRessource.Type" placeholder="e.g., Chair, Desk, Projector" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Espace</label>
+                            <select class="form-select" @bind="NewRessource.EspaceId">
+                                <option value="0">-- Select Espace --</option>
+                                @foreach (var espace in EspacesList)
+                                {
+                                    <option value="@espace.Id">@espace.Nom</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quantity Available</label>
+                            <input type="number" class="form-control" @bind="NewRessource.QuantiteDisponible" placeholder="Quantity" />
+                        </div>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger">@ErrorMessage</div>
+                }
+                <button class="btn btn-primary" @onclick="CreateRessource" disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    Create
+                </button>
+                <button class="btn btn-secondary" @onclick="() => ShowCreateForm = false">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (IsLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status"></div>
+        </div>
+    }
+    else if (RessourcesList.Count == 0)
+    {
+        <div class="alert alert-info">No resources found.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Espace ID</th>
+                        <th>Quantity</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ressource in RessourcesList)
+                    {
+                        <tr>
+                            <td>@ressource.Nom</td>
+                            <td>@ressource.Type</td>
+                            <td>@ressource.EspaceId</td>
+                            <td>@ressource.QuantiteDisponible</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteRessource(ressource.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Ressource> RessourcesList = new();
+    private List<Espace> EspacesList = new();
+    private Ressource NewRessource = new();
+    private bool IsLoading = true;
+    private bool ShowCreateForm = false;
+    private string ErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        RessourcesList = await RessourceService.GetAllRessourcesAsync();
+        EspacesList = await EspaceService.GetAllEspacesAsync();
+        IsLoading = false;
+    }
+
+    private async Task CreateRessource()
+    {
+        if (string.IsNullOrWhiteSpace(NewRessource.Nom) || NewRessource.EspaceId == 0 || NewRessource.QuantiteDisponible < 0)
+        {
+            ErrorMessage = "Please fill in all required fields";
+            return;
+        }
+
+        IsLoading = true;
+        bool success = await RessourceService.CreateRessourceAsync(NewRessource);
+        IsLoading = false;
+
+        if (success)
+        {
+            NewRessource = new();
+            ShowCreateForm = false;
+            await LoadData();
+        }
+        else
+        {
+            ErrorMessage = "Failed to create resource";
+        }
+    }
+
+    private async Task DeleteRessource(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Delete this resource?"))
+        {
+            bool success = await RessourceService.DeleteRessourceAsync(id);
+            if (success)
+            {
+                await LoadData();
+            }
+        }
+    }
+
+    [Inject]
+    protected IJSRuntime JS { get; set; }
+}}}
